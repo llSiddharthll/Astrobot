@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Tailwind -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Markdown renderer -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <!-- Simple animation library -->
+    <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
+
+    <title>Astro AI Chat</title>
+
+    <style>
+        .chat-panel-hidden {
+            opacity: 0;
+            pointer-events: none;
+            transform: translateX(120%) scale(0.96);
+        }
+
+        .chat-panel-visible {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translateX(0) scale(1);
+        }
+
+        /* custom scrollbar for chat */
+        #chatMessages::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        #chatMessages::-webkit-scrollbar-thumb {
+            background: #fbbf24;
+            border-radius: 999px;
+        }
+        
+        /* Message animations */
+        @keyframes messageSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .message-animation {
+            animation: messageSlideIn 0.3s ease-out forwards;
+        }
+        
+        /* Floating button pulse animation */
+        @keyframes gentlePulse {
+            0%, 100% {
+                box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4);
+            }
+            50% {
+                box-shadow: 0 0 0 12px rgba(245, 158, 11, 0);
+            }
+        }
+        
+        .pulse-ring {
+            animation: gentlePulse 2s infinite;
+        }
+        
+        /* Glow effect for header */
+        .header-glow {
+            box-shadow: 0 4px 20px rgba(245, 158, 11, 0.3);
+        }
+        
+        /* Typing indicator */
+        .typing-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .typing-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background-color: #f59e0b;
+            animation: typingPulse 1.4s infinite ease-in-out;
+        }
+        
+        .typing-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        
+        .typing-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        
+        @keyframes typingPulse {
+            0%, 60%, 100% {
+                transform: scale(0.8);
+                opacity: 0.5;
+            }
+            30% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100">
+
+    <!-- FLOATING BUTTON -->
+    <div class="fixed bottom-6 right-6 z-40">
+        <div class="relative">
+            <div class="absolute inset-0 rounded-full pulse-ring"></div>
+            <button id="chatIcon"
+                class="relative w-16 h-16 bg-gradient-to-br from-yellow-400 via-amber-500 to-yellow-700
+                       text-white rounded-full shadow-2xl text-3xl flex items-center justify-center
+                       ring-2 ring-yellow-200 hover:ring-yellow-400
+                       hover:scale-110 transition-all duration-300 cursor-pointer">
+                🔮
+            </button>
+        </div>
+    </div>
+
+    <!-- CHAT PANEL -->
+    <div id="chatPanel"
+        class="fixed bottom-24 right-4 w-[340px] sm:w-[380px] h-[80vh] bg-gradient-to-b from-amber-50 to-yellow-50
+               shadow-[0_20px_50px_rgba(0,0,0,0.25)] border border-amber-100
+               rounded-3xl chat-panel-hidden transition-all duration-300 ease-out flex flex-col overflow-hidden z-30">
+
+        <!-- Header -->
+        <div
+            class="p-4 bg-gradient-to-r from-yellow-500 via-amber-500 to-yellow-600 text-white flex justify-between items-center header-glow">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-lg">
+                    ✨
+                </div>
+                <div>
+                    <h2 class="text-lg font-semibold tracking-wide">Astro AI Assistant</h2>
+                    <p class="text-xs text-amber-100">Your cosmic buddy, not a boring bot</p>
+                </div>
+            </div>
+            <button id="closeChat"
+                class="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-lg font-bold transition-all duration-200">
+                ✕
+            </button>
+        </div>
+
+        <!-- Chat messages -->
+        <div id="chatMessages"
+            class="flex-1 p-4 overflow-y-auto space-y-4 bg-gradient-to-b from-amber-50/80 to-amber-100/40 relative overflow-x-hidden">
+
+            <!-- subtle bg elements -->
+            <div
+                class="pointer-events-none absolute -bottom-20 -right-10 w-40 h-40 bg-yellow-200/40 rounded-full blur-3xl">
+            </div>
+            <div
+                class="pointer-events-none absolute -top-20 -left-10 w-32 h-32 bg-amber-300/30 rounded-full blur-3xl">
+            </div>
+        </div>
+
+        <!-- Input -->
+        <div class="p-4 border-t border-amber-100 bg-white/80 backdrop-blur-sm">
+            <div class="text-[11px] text-gray-500 mb-1 flex justify-between">
+                <span>Press <span class="font-semibold text-amber-600">Enter</span> to send</span>
+                <span class="hidden sm:inline"><span class="font-semibold text-amber-600">Shift + Enter</span> for new line</span>
+            </div>
+            <div class="relative">
+                <textarea id="chatInput" rows="2"
+                    class="w-full border border-amber-200 rounded-2xl px-4 py-3 shadow-sm text-sm
+                           focus:ring-2 focus:ring-amber-400 focus:border-amber-400 resize-none pr-12 outline-none"
+                    placeholder="Type your cosmic vibes here..."></textarea>
+                <button id="sendBtn"
+                    class="absolute right-2 bottom-2 w-8 h-8 bg-gradient-to-r from-yellow-500 to-amber-500 
+                           text-white rounded-full flex items-center justify-center text-sm
+                           hover:shadow-md hover:scale-105 active:scale-95 transition-all duration-200">
+                    ↑
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* ===========================================
+           PANEL SLIDE OPEN / CLOSE
+        =========================================== */
+        const panel = document.getElementById("chatPanel");
+        const chatIcon = document.getElementById("chatIcon");
+        const closeChat = document.getElementById("closeChat");
+        const msgBox = document.getElementById("chatMessages");
+        const input = document.getElementById("chatInput");
+        const sendBtn = document.getElementById("sendBtn");
+
+        let conversationStarted = false;
+
+        function openPanel() {
+            panel.classList.remove("chat-panel-hidden");
+            panel.classList.add("chat-panel-visible");
+
+            if (!conversationStarted) {
+                startConversation();
+                conversationStarted = true;
+            }
+            
+            // Focus input after a short delay
+            setTimeout(() => {
+                input.focus();
+            }, 400);
+        }
+
+        function closePanel() {
+            panel.classList.add("chat-panel-hidden");
+            panel.classList.remove("chat-panel-visible");
+        }
+
+        chatIcon.onclick = openPanel;
+        closeChat.onclick = closePanel;
+
+        /* ===========================================
+           STATE: QUESTIONS FLOW
+        =========================================== */
+        const answerKeys = ["dob", "zodiac", "concern", "preference", "energy"];
+
+        let userState = {
+            currentStep: 0,
+            completed: false,
+            questions: [
+                "Alright, let's tune into your vibe first ✨\n\nWhat's your **date of birth**?",
+                "Nice. And which **zodiac sign** do you feel most connected to?",
+                "Tell me honestly — what's messing with your head more these days: **love, career, health, or just stress**?",
+                "Okay, energy style question: do you vibe more with **wearable energy** (rings/bracelets), or **home energy** (yantra/vastu/decor)?",
+                "Last one — what kind of energy do you want more of in life? **Peace, confidence, clarity, protection, or something else**?"
+            ],
+            answers: {},
+            recommendationText: ""
+        };
+
+        function startConversation() {
+            addMessage("Heeey there 👋<br><br>I'm your low-key astro buddy. Not formal, not judgmental, just vibes. Ready?", "bot");
+            setTimeout(() => {
+                addMessage(userState.questions[0], "bot");
+            }, 800);
+        }
+
+        /* ===========================================
+           UI: ADD MESSAGE
+        =========================================== */
+        function addMessage(text, sender) {
+            const wrapper = document.createElement("div");
+            wrapper.className = sender === "user" ? "flex justify-end" : "flex justify-start";
+            wrapper.classList.add("message-animation");
+
+            const bubble = document.createElement("div");
+            bubble.className =
+                sender === "user"
+                    ? "inline-block bg-gradient-to-r from-yellow-500 to-amber-500 text-white px-4 py-2 rounded-2xl shadow max-w-[80%] text-sm"
+                    : "inline-block bg-white/90 border border-amber-100 px-4 py-3 rounded-2xl shadow-sm max-w-[80%] text-sm prose prose-sm break-words";
+
+            if (sender === "bot") {
+                bubble.innerHTML = marked.parse(text);
+            } else {
+                bubble.textContent = text;
+            }
+
+            wrapper.appendChild(bubble);
+            msgBox.appendChild(wrapper);
+            msgBox.scrollTop = msgBox.scrollHeight;
+        }
+
+        function addThinking() {
+            const div = document.createElement("div");
+            div.className = "flex justify-start message-animation";
+            const inner = document.createElement("div");
+            inner.className =
+                "inline-flex items-center gap-2 bg-white/80 border border-amber-100 px-4 py-2 rounded-2xl text-xs text-gray-500 italic";
+            inner.innerHTML = `
+                <div class="typing-indicator">
+                    <span>Astro AI is thinking</span>
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                </div>
+            `;
+            div.appendChild(inner);
+            msgBox.appendChild(div);
+            msgBox.scrollTop = msgBox.scrollHeight;
+            return div;
+        }
+
+        /* ===========================================
+           MISTRAL CONFIG
+        =========================================== */
+
+        const MISTRAL_API_KEY = "MUxu2ZaEribo6ipRXm8oObJ0isy4my3t"; // <-- replace with your key
+
+        async function generateFinalSuggestion(answers) {
+            try {
+                const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${MISTRAL_API_KEY}`,
+                    },
+                    body: JSON.stringify({
+                        model: "mistral-small-latest",
+                        messages: [
+                            {
+                                role: "system",
+                                content: `
+You are a cool, funny, friendly astrologer bestie.
+You DO NOT ask questions.
+You already have the user's answers.
+
+Based on their vibe, suggest exactly ONE main product from this list:
+Bracelet, Ring, Pendant, Necklace, Stones, Yantra, Rudraksha, Vastu Decor Items, VIP E-Pooja, Services.
+
+Choose based on:
+- date of birth + zodiac = overall element/theme
+- concern = what they are struggling with
+- preference (wearable vs home) = type of product
+- energy = what they want more of
+
+Tone:
+- casual, human, like WhatsApp chat
+- a little playful and encouraging
+- no corporate or "as an AI" language
+- 3-6 short sentences max
+
+Format (markdown):
+- Start with a short friendly sentence.
+- Bold the recommended product name once.
+- Briefly explain WHY it matches their vibe.
+- Optionally add 1 short line suggesting they check that category on the site.
+                                `
+                            },
+                            {
+                                role: "user",
+                                content: `Here are the user's answers: ${JSON.stringify(answers)}`
+                            }
+                        ]
+                    })
+                });
+
+                if (!response.ok) {
+                    return `⚠️ Mistral error: ${response.status} ${response.statusText}. Try again in a bit.`;
+                }
+
+                const data = await response.json();
+                if (!data.choices || !data.choices[0]) {
+                    return "⚠️ The stars lagged for a sec. Try again.";
+                }
+
+                return data.choices[0].message.content;
+
+            } catch (e) {
+                return "⚠️ Network glitch while talking to the universe. Try again in a moment.";
+            }
+        }
+
+        async function chatAfterRecommendation(userMessage, state) {
+            try {
+                const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${MISTRAL_API_KEY}`,
+                    },
+                    body: JSON.stringify({
+                        model: "mistral-small-latest",
+                        messages: [
+                            {
+                                role: "system",
+                                content: `
+You are the same friendly astrology buddy as before.
+You already recommended something earlier.
+
+Now:
+- Just chat casually.
+- Answer doubts or follow-up questions.
+- Don't keep pushing products unless the user asks directly.
+- Never say "as an AI".
+- Keep messages short and human, like a friend on chat.
+                                `
+                            },
+                            {
+                                role: "user",
+                                content: `
+User's basic info: ${JSON.stringify(state.answers)}
+Previous recommendation text: ${state.recommendationText || "not captured"}
+
+User just said: ${userMessage}
+                                `
+                            }
+                        ]
+                    })
+                });
+
+                if (!response.ok) {
+                    return `⚠️ Mistral error: ${response.status} ${response.statusText}.`;
+                }
+
+                const data = await response.json();
+                if (!data.choices || !data.choices[0]) {
+                    return "⚠️ Universe is quiet right now. Try again.";
+                }
+
+                return data.choices[0].message.content;
+
+            } catch (e) {
+                return "⚠️ Network glitch. Try again.";
+            }
+        }
+
+        /* ===========================================
+           SEND HANDLER (ENTER + BUTTON)
+        =========================================== */
+
+        async function handleSend() {
+            const text = input.value.trim();
+            if (!text) return;
+
+            addMessage(text, "user");
+            input.value = "";
+            input.style.height = "auto";
+
+            // If flow NOT completed → we are in question mode
+            if (!userState.completed && userState.currentStep < userState.questions.length) {
+                const step = userState.currentStep;
+                const key = answerKeys[step] || `q${step + 1}`;
+                userState.answers[key] = text;
+                userState.currentStep++;
+
+                if (userState.currentStep < userState.questions.length) {
+                    // ask next question directly (no API)
+                    setTimeout(() => {
+                        addMessage(userState.questions[userState.currentStep], "bot");
+                    }, 600);
+                    return;
+                }
+
+                // All questions answered → call Mistral once
+                const thinkingDiv = addThinking();
+                const reply = await generateFinalSuggestion(userState.answers);
+                thinkingDiv.remove();
+
+                userState.completed = true;
+                userState.recommendationText = reply;
+                addMessage(reply, "bot");
+                return;
+            }
+
+            // After recommendation → normal chat mode with AI
+            const thinkingDiv = addThinking();
+            const followup = await chatAfterRecommendation(text, userState);
+            thinkingDiv.remove();
+            addMessage(followup, "bot");
+        }
+
+        sendBtn.onclick = handleSend;
+
+        // Enter to send, Shift+Enter for new line
+        input.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+            }
+        });
+
+        // Auto-resize textarea
+        input.addEventListener("input", () => {
+            input.style.height = "auto";
+            input.style.height = Math.min(input.scrollHeight, 96) + "px";
+        });
+    </script>
+
+</body>
+
+</html>
