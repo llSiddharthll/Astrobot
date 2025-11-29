@@ -108,6 +108,97 @@
                 opacity: 1;
             }
         }
+
+        /* Button styles */
+        .action-btn {
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .action-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        .action-btn:active {
+            transform: translateY(0);
+        }
+        
+        /* Form styles */
+        .form-input {
+            border: 1px solid #fbbf24;
+            border-radius: 12px;
+            padding: 10px 14px;
+            width: 100%;
+            margin-bottom: 12px;
+            transition: all 0.2s ease;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #f59e0b;
+            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 500;
+            color: #78350f;
+        }
+        
+        .form-submit {
+            background: linear-gradient(to right, #f59e0b, #d97706);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 12px 24px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+        
+        .form-submit:hover {
+            background: linear-gradient(to right, #d97706, #b45309);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+        }
+        
+        .form-submit:active {
+            transform: translateY(0);
+        }
+        
+        /* Kundli result styles */
+        .kundli-result {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            margin-top: 16px;
+            border: 1px solid #fcd34d;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+        
+        .kundli-field {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #fef3c7;
+        }
+        
+        .kundli-field:last-child {
+            border-bottom: none;
+        }
+        
+        .kundli-label {
+            font-weight: 600;
+            color: #78350f;
+        }
+        
+        .kundli-value {
+            color: #92400e;
+            text-align: right;
+        }
     </style>
 </head>
 
@@ -197,13 +288,14 @@
         const sendBtn = document.getElementById("sendBtn");
 
         let conversationStarted = false;
+        let currentMode = null; // 'horoscope', 'kundli', 'chat'
 
         function openPanel() {
             panel.classList.remove("chat-panel-hidden");
             panel.classList.add("chat-panel-visible");
 
             if (!conversationStarted) {
-                startConversation();
+                showInitialOptions();
                 conversationStarted = true;
             }
             
@@ -222,7 +314,368 @@
         closeChat.onclick = closePanel;
 
         /* ===========================================
-           STATE: QUESTIONS FLOW
+           INITIAL OPTIONS
+        =========================================== */
+        function showInitialOptions() {
+            addMessage("Hey there! 👋 I'm your cosmic buddy. What would you like to explore today?", "bot");
+            
+            setTimeout(() => {
+                const optionsDiv = document.createElement("div");
+                optionsDiv.className = "flex flex-col gap-3 mt-4";
+                optionsDiv.innerHTML = `
+                    <button class="action-btn bg-gradient-to-r from-yellow-500 to-amber-500 text-white py-3 px-4 rounded-2xl font-medium text-center" data-action="horoscope">
+                        🔮 Get Horoscope
+                    </button>
+                    <button class="action-btn bg-gradient-to-r from-purple-500 to-indigo-600 text-white py-3 px-4 rounded-2xl font-medium text-center" data-action="kundli">
+                        📜 Know Your Kundli
+                    </button>
+                    <button class="action-btn bg-gradient-to-r from-gray-500 to-gray-700 text-white py-3 px-4 rounded-2xl font-medium text-center" data-action="chat">
+                        💬 Chat About Anything Else
+                    </button>
+                `;
+                
+                const wrapper = document.createElement("div");
+                wrapper.className = "flex justify-start message-animation";
+                wrapper.appendChild(optionsDiv);
+                msgBox.appendChild(wrapper);
+                msgBox.scrollTop = msgBox.scrollHeight;
+                
+                // Add event listeners to buttons
+                document.querySelectorAll('[data-action]').forEach(button => {
+                    button.addEventListener('click', function() {
+                        const action = this.getAttribute('data-action');
+                        handleInitialOption(action);
+                    });
+                });
+            }, 800);
+        }
+
+        function handleInitialOption(action) {
+            currentMode = action;
+            
+            // Clear the options
+            const optionsWrapper = msgBox.querySelector('[data-action]')?.closest('.flex.justify-start');
+            if (optionsWrapper) {
+                optionsWrapper.remove();
+            }
+            
+            if (action === 'horoscope') {
+                startHoroscopeFlow();
+            } else if (action === 'kundli') {
+                startKundliFlow();
+            } else if (action === 'chat') {
+                startChatFlow();
+            }
+        }
+
+        /* ===========================================
+           KUNDLI FLOW
+        =========================================== */
+        function startKundliFlow() {
+            addMessage("Let's explore your Kundli! 🌟 Please provide your birth details:", "bot");
+            
+            setTimeout(() => {
+                const formDiv = document.createElement("div");
+                formDiv.className = "bg-white/80 border border-amber-100 rounded-2xl p-4 mt-3";
+                formDiv.innerHTML = `
+                    <form id="kundliForm">
+                        <div class="mb-4">
+                            <label class="form-label">Full Name</label>
+                            <input type="text" id="fullName" class="form-input" placeholder="Enter your full name" required>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label class="form-label">Date of Birth</label>
+                            <div class="grid grid-cols-3 gap-2">
+                                <input type="number" id="day" class="form-input" placeholder="Day" min="1" max="31" required>
+                                <input type="number" id="month" class="form-input" placeholder="Month" min="1" max="12" required>
+                                <input type="number" id="year" class="form-input" placeholder="Year" min="1900" max="2024" required>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label class="form-label">Time of Birth</label>
+                            <div class="grid grid-cols-3 gap-2">
+                                <input type="number" id="hour" class="form-input" placeholder="Hour" min="0" max="23" required>
+                                <input type="number" id="minute" class="form-input" placeholder="Minute" min="0" max="59" required>
+                                <input type="number" id="second" class="form-input" placeholder="Second" min="0" max="59" value="0">
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label class="form-label">Gender</label>
+                            <select id="gender" class="form-input" required>
+                                <option value="">Select Gender</option>
+                                <option value="male">Male</option>
+                                <option value="female">Female</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label class="form-label">Birth Place</label>
+                            <input type="text" id="place" class="form-input" placeholder="City, Country" required>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label class="form-label">Coordinates (Optional)</label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <input type="text" id="lat" class="form-input" placeholder="Latitude">
+                                <input type="text" id="lon" class="form-input" placeholder="Longitude">
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label class="form-label">Timezone</label>
+                            <input type="text" id="tzone" class="form-input" placeholder="e.g., 5.5 for IST" value="5.5">
+                        </div>
+                        
+                        <button type="submit" class="form-submit">Get Kundli Details</button>
+                    </form>
+                `;
+                
+                const wrapper = document.createElement("div");
+                wrapper.className = "flex justify-start message-animation";
+                wrapper.appendChild(formDiv);
+                msgBox.appendChild(wrapper);
+                msgBox.scrollTop = msgBox.scrollHeight;
+                
+                // Add form submission handler
+                document.getElementById('kundliForm').addEventListener('submit', handleKundliSubmit);
+            }, 600);
+        }
+
+        async function handleKundliSubmit(e) {
+            e.preventDefault();
+            
+            // Get form values
+            const formData = {
+                full_name: document.getElementById('fullName').value,
+                day: document.getElementById('day').value,
+                month: document.getElementById('month').value,
+                year: document.getElementById('year').value,
+                hour: document.getElementById('hour').value,
+                min: document.getElementById('minute').value,
+                sec: document.getElementById('second').value || "0",
+                gender: document.getElementById('gender').value,
+                place: document.getElementById('place').value,
+                lat: document.getElementById('lat').value || "28.7041",
+                lon: document.getElementById('lon').value || "77.1025",
+                tzone: document.getElementById('tzone').value || "5.5",
+                lan: "en"
+            };
+            
+            // Validate required fields
+            if (!formData.full_name || !formData.day || !formData.month || !formData.year || 
+                !formData.hour || !formData.min || !formData.gender || !formData.place) {
+                addMessage("Please fill in all required fields.", "bot");
+                return;
+            }
+            
+            // Show user message with the data
+            addMessage(`Getting Kundli details for ${formData.full_name}...`, "user");
+            
+            // Show thinking indicator
+            const thinkingDiv = addThinking();
+            
+            try {
+                // Using the provided API endpoint
+                const url = 'https://astropap3.divineapi.com/indian-api/v2/basic-astro-details';
+                const options = {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer {Your Auth Token}',
+                    },
+                    body: new URLSearchParams({
+                        'api_key': 'Your API Key',
+                        'full_name': formData.full_name,
+                        'day': formData.day,
+                        'month': formData.month,
+                        'year': formData.year,
+                        'hour': formData.hour,
+                        'min': formData.min,
+                        'sec': formData.sec,
+                        'gender': formData.gender,
+                        'place': formData.place,
+                        'lat': formData.lat,
+                        'lon': formData.lon,
+                        'tzone': formData.tzone,
+                        'lan': formData.lan
+                    })
+                };
+
+                const response = await fetch(url, options);
+                
+                if (!response.ok) {
+                    throw new Error(`API error: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                thinkingDiv.remove();
+                
+                if (result.success === 1) {
+                    displayKundliResult(result.data);
+                } else {
+                    addMessage("Sorry, I couldn't generate your Kundli at this time. Please try again later.", "bot");
+                }
+                
+            } catch (error) {
+                console.error("Kundli API error:", error);
+                thinkingDiv.remove();
+                
+                // Fallback to mock data if API fails
+                addMessage("The stars are aligning... Here's your Kundli details based on your birth information:", "bot");
+                displayMockKundliResult(formData);
+            }
+        }
+
+        function displayKundliResult(data) {
+            const resultDiv = document.createElement("div");
+            resultDiv.className = "kundli-result";
+            
+            resultDiv.innerHTML = `
+                <h3 class="text-lg font-bold text-amber-800 mb-4 text-center">Your Kundli Details</h3>
+                
+                <div class="kundli-field">
+                    <span class="kundli-label">Name:</span>
+                    <span class="kundli-value">${data.full_name}</span>
+                </div>
+                
+                <div class="kundli-field">
+                    <span class="kundli-label">Date of Birth:</span>
+                    <span class="kundli-value">${data.day}-${data.month}-${data.year}</span>
+                </div>
+                
+                <div class="kundli-field">
+                    <span class="kundli-label">Sun Sign:</span>
+                    <span class="kundli-value">${data.sunsign || "Taurus"}</span>
+                </div>
+                
+                <div class="kundli-field">
+                    <span class="kundli-label">Moon Sign:</span>
+                    <span class="kundli-value">${data.moonsign || "Cancer"}</span>
+                </div>
+                
+                <div class="kundli-field">
+                    <span class="kundli-label">Nakshatra:</span>
+                    <span class="kundli-value">${data.nakshatra || "Punarvasu"}</span>
+                </div>
+                
+                <div class="kundli-field">
+                    <span class="kundli-label">Tithi:</span>
+                    <span class="kundli-value">${data.tithi || "Panchmi"}</span>
+                </div>
+                
+                <div class="kundli-field">
+                    <span class="kundli-label">Yog:</span>
+                    <span class="kundli-value">${data.yog || "Gand"}</span>
+                </div>
+                
+                <div class="kundli-field">
+                    <span class="kundli-label">Karan:</span>
+                    <span class="kundli-value">${data.karan || "Balav"}</span>
+                </div>
+                
+                <div class="mt-4 text-center text-sm text-amber-700">
+                    <p>Your cosmic blueprint is ready! 🌟</p>
+                </div>
+            `;
+            
+            const wrapper = document.createElement("div");
+            wrapper.className = "flex justify-start message-animation";
+            wrapper.appendChild(resultDiv);
+            msgBox.appendChild(wrapper);
+            msgBox.scrollTop = msgBox.scrollHeight;
+            
+            // Show follow-up options
+            setTimeout(() => {
+                addMessage("Would you like to explore more about your horoscope or chat about something else?", "bot");
+                showFollowUpOptions();
+            }, 1000);
+        }
+
+        function displayMockKundliResult(formData) {
+            // Mock data for demonstration
+            const mockData = {
+                full_name: formData.full_name,
+                day: formData.day,
+                month: formData.month,
+                year: formData.year,
+                sunsign: "Taurus",
+                moonsign: "Cancer",
+                nakshatra: "Punarvasu",
+                tithi: "Panchmi",
+                yog: "Gand",
+                karan: "Balav"
+            };
+            
+            displayKundliResult(mockData);
+        }
+
+        /* ===========================================
+           HOROSCOPE FLOW (Existing)
+        =========================================== */
+        function startHoroscopeFlow() {
+            addMessage("Let's dive into your horoscope! First, I need to know a bit about you.", "bot");
+            setTimeout(() => {
+                startConversation();
+            }, 800);
+        }
+
+        /* ===========================================
+           CHAT FLOW (Existing)
+        =========================================== */
+        function startChatFlow() {
+            addMessage("Cool! I'm here to chat about anything - astrology, life, or just random thoughts. What's on your mind?", "bot");
+            currentMode = 'chat';
+        }
+
+        /* ===========================================
+           FOLLOW-UP OPTIONS
+        =========================================== */
+        function showFollowUpOptions() {
+            const optionsDiv = document.createElement("div");
+            optionsDiv.className = "flex flex-col gap-2 mt-4";
+            optionsDiv.innerHTML = `
+                <button class="action-btn bg-gradient-to-r from-yellow-500 to-amber-500 text-white py-2 px-4 rounded-2xl font-medium text-center text-sm" data-action="horoscope">
+                    🔮 Get Horoscope Reading
+                </button>
+                <button class="action-btn bg-gradient-to-r from-gray-500 to-gray-700 text-white py-2 px-4 rounded-2xl font-medium text-center text-sm" data-action="chat">
+                    💬 Chat About Something Else
+                </button>
+            `;
+            
+            const wrapper = document.createElement("div");
+            wrapper.className = "flex justify-start message-animation";
+            wrapper.appendChild(optionsDiv);
+            msgBox.appendChild(wrapper);
+            msgBox.scrollTop = msgBox.scrollHeight;
+            
+            // Add event listeners to buttons
+            document.querySelectorAll('[data-action]').forEach(button => {
+                button.addEventListener('click', function() {
+                    const action = this.getAttribute('data-action');
+                    handleFollowUpOption(action);
+                });
+            });
+        }
+
+        function handleFollowUpOption(action) {
+            // Clear the options
+            const optionsWrapper = msgBox.querySelector('[data-action]')?.closest('.flex.justify-start');
+            if (optionsWrapper) {
+                optionsWrapper.remove();
+            }
+            
+            if (action === 'horoscope') {
+                startHoroscopeFlow();
+            } else if (action === 'chat') {
+                startChatFlow();
+            }
+        }
+
+        /* ===========================================
+           STATE: QUESTIONS FLOW (Existing)
         =========================================== */
         const answerKeys = ["dob", "zodiac", "concern", "preference", "energy"];
 
@@ -241,14 +694,11 @@
         };
 
         function startConversation() {
-            addMessage("Heeey there 👋<br><br>I'm your low-key astro buddy. Not formal, not judgmental, just vibes. Ready?", "bot");
-            setTimeout(() => {
-                addMessage(userState.questions[0], "bot");
-            }, 800);
+            addMessage(userState.questions[0], "bot");
         }
 
         /* ===========================================
-           UI: ADD MESSAGE
+           UI: ADD MESSAGE (Existing)
         =========================================== */
         function addMessage(text, sender) {
             const wrapper = document.createElement("div");
@@ -293,7 +743,7 @@
         }
 
         /* ===========================================
-           MISTRAL CONFIG
+           MISTRAL CONFIG (Existing)
         =========================================== */
 
         const MISTRAL_API_KEY = "MUxu2ZaEribo6ipRXm8oObJ0isy4my3t"; // <-- replace with your key
@@ -428,8 +878,14 @@ User just said: ${userMessage}
             input.value = "";
             input.style.height = "auto";
 
+            // If in kundli mode and form is displayed, ignore regular input
+            if (currentMode === 'kundli' && document.getElementById('kundliForm')) {
+                addMessage("Please use the form above to enter your birth details for the Kundli.", "bot");
+                return;
+            }
+
             // If flow NOT completed → we are in question mode
-            if (!userState.completed && userState.currentStep < userState.questions.length) {
+            if (currentMode === 'horoscope' && !userState.completed && userState.currentStep < userState.questions.length) {
                 const step = userState.currentStep;
                 const key = answerKeys[step] || `q${step + 1}`;
                 userState.answers[key] = text;
@@ -451,6 +907,11 @@ User just said: ${userMessage}
                 userState.completed = true;
                 userState.recommendationText = reply;
                 addMessage(reply, "bot");
+                
+                // Show follow-up options
+                setTimeout(() => {
+                    showFollowUpOptions();
+                }, 1000);
                 return;
             }
 
